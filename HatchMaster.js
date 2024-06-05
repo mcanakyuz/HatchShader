@@ -254,10 +254,10 @@ class RandomLineTextureGenerator extends TextureGenerator{
         textureCanvas = document.createElement('canvas');
         if (sourceCanvas) {
             this.copyCanvasContent(sourceCanvas, textureCanvas);
-        } else {
-            textureCanvas.width = 256;
-            textureCanvas.height = 256;
-        }
+        } 
+        textureCanvas.width = 256;
+        textureCanvas.height = 256;
+    
         this.drawTextureLines(textureCanvas, density);
         const texture = new Texture(textureCanvas);
         texture.wrapS = texture.wrapT = RepeatWrapping;
@@ -305,6 +305,7 @@ class RandomLineTextureGenerator extends TextureGenerator{
         for (let i = 0; i <= 5; i++) {
             let texture = this.createTextureCanvas(2 ** (i) * this.params.midDensity/4 , prevCanvas);
             this.textures[i] = texture;
+            console.log(i,texture.image.width);
             prevCanvas = texture.image;
         }
     }

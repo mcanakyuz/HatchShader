@@ -2,8 +2,53 @@ import {
   Color,
   MeshStandardMaterial,
   TextureLoader,
+  Texture,
   Vector2,
+  RepeatWrapping,
 } from "three";
+
+function getImageData(texture) {
+  const canvas = document.createElement("canvas");
+  canvas.width = texture.image.width;
+  canvas.height = texture.image.height;
+
+  const context = canvas.getContext("2d");
+  context.drawImage(texture.image, 0, 0);
+  return context.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+function packageTextures(textures){
+  // Combine greyscale textures into RGB textures of 3 channels, so that we pass len(textures)/3 textures to the shader
+  let packedTextures = [];
+for (let i = 0; i < textures.length; i += 3) {
+  const canvas = document.createElement("canvas");
+  canvas.width = textures[i].image.width;
+  canvas.height = textures[i].image.height;
+  const context = canvas.getContext("2d");
+  const redImageData = getImageData(textures[i]);
+  const greenImageData = getImageData(textures[i + 1]);
+  const blueImageData = getImageData(textures[i + 2]);
+
+  const rgbImageData = context.createImageData(canvas.width, canvas.height);
+
+  for (let j = 0; j < rgbImageData.data.length; j += 4) {
+    rgbImageData.data[j] = redImageData.data[j];
+    rgbImageData.data[j + 1] = greenImageData.data[j];
+    rgbImageData.data[j + 2] = blueImageData.data[j];
+    rgbImageData.data[j + 3] = 255;
+  }
+
+
+  context.putImageData(rgbImageData, 0, 0);
+
+  const packedTexture = new Texture(canvas);
+  packedTexture.wrapS = packedTexture.wrapT = RepeatWrapping;
+  packedTexture.needsUpdate = true;
+  packedTextures.push(packedTexture);
+}
+
+return packedTextures;
+}
 
 class SketchMaterial extends MeshStandardMaterial {
   constructor(options) {
@@ -22,7 +67,7 @@ class SketchMaterial extends MeshStandardMaterial {
 
     this.uniforms = {
       resolution: { value: new Vector2(1, 1) },
-      textures: { value: this.params.textures },
+      textures: { value: packageTextures(this.params.textures) },
       numTextures: { value: 7 },
       sketchColor: { value: new Color(this.params.sketchColor) },
     };
@@ -78,20 +123,18 @@ class SketchMaterial extends MeshStandardMaterial {
                     weights[i] = weights[i] - weights[i+1];
                 }
                 vec4 texColor = vec4(1.0)* weights[6];
-                texColor += texture2D(textures[0], vCoords)* weights[5];
-                texColor +=  texture2D(textures[1], vCoords)* weights[4];
-                texColor +=  texture2D(textures[2], vCoords)* weights[3];
-                texColor +=  texture2D(textures[3], vCoords)* weights[2];
-                texColor +=  texture2D(textures[4], vCoords)* weights[1];
-                texColor +=  texture2D(textures[5], vCoords)* weights[0];
+                vec4 packedTexture0 = texture2D(textures[0], vCoords);
+                vec4 packedTexture1 = texture2D(textures[1], vCoords);
+                texColor += vec4(packedTexture0.r) * weights[5];
+                texColor +=  vec4(packedTexture0.g) * weights[4];
+                texColor +=  vec4(packedTexture0.b) * weights[3];
+                texColor +=  vec4(packedTexture1.r) * weights[2];
+                texColor +=  vec4(packedTexture1.g) * weights[1];
+                texColor +=  vec4(packedTexture1.b) * weights[0];
 
                 texColor.rgb = max(texColor.rgb, sketchColor) ;
-                texColor.rgb = min(vec3(1.0), texColor.rgb + totalSpecular.rgb);
-                // gl_FragColor.rgb =  outgoingLight.rgb;
-                // gl_FragColor.rgb =  vec3(intensity);
+                texColor.rgb = min(vec3(1.0), texColor.rgb + totalSpecular.rgb); // comment out if want to remove specular from sketch
                 gl_FragColor.rgb =  texColor.rgb * diffuseColor.rgb;
-                // gl_FragColor.rgb = totalSpecular.rgb;
-                // gl_FragColor.rgb = vec3(weights[0], weights[5], weights[6]);
                 `
       );
       console.log(shader.fragmentShader);
@@ -105,7 +148,7 @@ class SketchMaterial extends MeshStandardMaterial {
       group
     ) => {
       this.uniforms.sketchColor.value = new Color(this.params.sketchColor);
-      this.uniforms.textures.value = this.params.textures;
+      this.uniforms.textures.value = packageTextures(this.params.textures) ;
     };
   }
 }
