@@ -1,3 +1,3 @@
 # HatchShader
 
-Run with npx vite
+Run with npx vite  using node.js
